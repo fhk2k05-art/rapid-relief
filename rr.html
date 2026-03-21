@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rapid Relief</title>
+
+<style>
+body {
+  font-family: Arial;
+  margin: 0;
+  background: #f0f0f0;
+  text-align: center;
+}
+
+header {
+  background: red;
+  color: white;
+  padding: 15px;
+  font-size: 22px;
+}
+
+.container {
+  padding: 20px;
+}
+
+button {
+  padding: 12px;
+  margin: 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.login-btn { background: green; color: white; width: 95%; }
+.category { width: 45%; background: #007bff; color: white; }
+.sos { background: red; color: white; width: 80%; font-size: 22px; padding: 20px; }
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.hidden { display: none; }
+
+#map {
+  width: 100%;
+  height: 250px;
+  margin-top: 20px;
+  border-radius: 10px;
+}
+
+/* CHATBOT */
+#chatbot {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  width: 300px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 0 10px gray;
+}
+
+#chatHeader {
+  background: black;
+  color: white;
+  padding: 10px;
+}
+
+#chatMessages {
+  height: 200px;
+  overflow-y: auto;
+  padding: 10px;
+  text-align: left;
+}
+
+#chatInput {
+  width: 70%;
+  padding: 8px;
+}
+
+#sendBtn {
+  width: 25%;
+  background: green;
+  color: white;
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .category { width: 90%; }
+  #chatbot { width: 95%; right: 2%; }
+}
+</style>
+</head>
+
+<body>
+
+<header>🚨 Rapid Relief</header>
+
+<!-- LOGIN -->
+<div id="loginPage" class="container">
+  <h2>Login</h2>
+  <input type="text" placeholder="Username" id="username"><br>
+  <input type="password" placeholder="Password" id="password"><br>
+  <button class="login-btn" onclick="login()">Login</button>
+</div>
+
+<!-- HOME -->
+<div id="homePage" class="container hidden">
+
+  <h3>Your Location:</h3>
+  <p id="locationText">Fetching...</p>
+
+  <div id="map"></div>
+
+  <h2>Select Emergency</h2>
+
+  <div class="grid">
+    <button class="category" onclick="sendSOS('Medical')">Medical</button>
+    <button class="category" onclick="sendSOS('Fire')">Fire</button>
+    <button class="category" onclick="sendSOS('Crime')">Crime</button>
+    <button class="category" onclick="sendSOS('Mechanical')">Mechanical</button>
+  </div>
+
+  <button class="sos" onclick="sendSOS('General')">🚨 SEND SOS</button>
+
+  <p id="status"></p>
+
+  <h3>📡 Live Alerts</h3>
+  <div id="alerts"></div>
+
+</div>
+
+<!-- 🤖 CHATBOT -->
+<div id="chatbot">
+  <div id="chatHeader">🤖 Retrizen</div>
+  <div id="chatMessages"></div>
+  <input id="chatInput" placeholder="Ask something...">
+  <button id="sendBtn" onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+let userLocation = { lat: null, lng: null };
+
+// LOGIN
+function login() {
+  document.getElementById("loginPage").classList.add("hidden");
+  document.getElementById("homePage").classList.remove("hidden");
+  getLocation();
+}
+
+// GPS
+function getLocation() {
+  navigator.geolocation.getCurrentPosition((pos) => {
+    userLocation.lat = pos.coords.latitude;
+    userLocation.lng = pos.coords.longitude;
+
+    document.getElementById("locationText").innerText =
+      userLocation.lat + ", " + userLocation.lng;
+
+    loadMap();
+  });
+}
+
+// MAP
+function loadMap() {
+  const map = new google.maps.Map(document.getElementById("map"), {
+    center: userLocation,
+    zoom: 14,
+  });
+
+  new google.maps.Marker({
+    position: userLocation,
+    map: map,
+  });
+}
+
+// SOS + LIVE ALERT
+function sendSOS(type) {
+  const message = "🚨 " + type + " emergency at (" +
+    userLocation.lat + "," + userLocation.lng + ")";
+
+  document.getElementById("status").innerText = "SOS Sent";
+
+  // show locally
+  const alertBox = document.getElementById("alerts");
+  const div = document.createElement("div");
+  div.innerText = message;
+  alertBox.prepend(div);
+
+  // send to backend
+  fetch('http://localhost:3000/sos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type, location: userLocation })
+  });
+}
+
+// 🤖 RETRIZEN CHATBOT
+function sendMessage() {
+  const input = document.getElementById("chatInput");
+  const msg = input.value;
+  const chat = document.getElementById("chatMessages");
+
+  if (!msg) return;
+
+  chat.innerHTML += "<div><b>You:</b> " + msg + "</div>";
+
+  let reply = getBotReply(msg);
+
+  setTimeout(() => {
+    chat.innerHTML += "<div><b>Retrizen:</b> " + reply + "</div>";
+    chat.scrollTop = chat.scrollHeight;
+  }, 500);
+
+  input.value = "";
+}
+
+// SIMPLE AI LOGIC
+function getBotReply(msg) {
+  msg = msg.toLowerCase();
+
+  if (msg.includes("help")) return "Press SOS button immediately 🚨";
+  if (msg.includes("fire")) return "Move away and call fire services 🔥";
+  if (msg.includes("medical")) return "Try basic first aid and send SOS 🏥";
+  if (msg.includes("location")) return "Your location is shown on map 📍";
+  
+  return "I am Retrizen 🤖. I help during emergencies.";
+}
+</script>
+
+<!-- Google Maps -->
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
+
+</body>
+</html>
