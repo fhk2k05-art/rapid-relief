@@ -2,32 +2,32 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path');
+const { OpenAI } = require('openai');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*"
-  }
+
+const io = new Server(server);
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
 });
 
 app.use(cors());
+app.use(express.json());
 app.use(express.static(__dirname));
-// Store SOS alerts in memory
-let alerts = [];
 
-// ✅ Test route
-const path = require('path');
+let alerts = [];
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'rr.html'));
 });
-// ✅ Get all alerts
+
 app.get('/alerts', (req, res) => {
   res.json(alerts);
 });
 
-// ✅ SOS API
 app.post('/sos', (req, res) => {
   const { type, location } = req.body;
 
@@ -40,27 +40,30 @@ app.post('/sos', (req, res) => {
 
   alerts.unshift(newAlert);
 
-  console.log("🚨 SOS:", newAlert);
-
-  // 🔥 Send to all connected users (real-time)
   io.emit('newSOS', newAlert);
 
-  res.json({ message: "SOS sent successfully 🚨" });
+  res.json({ message: "SOS sent" });
 });
 
-// 🔌 Socket.io connection
+app.post('/chat', async (req, res) => {
+  try {
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: req.body.message }]
+    });
+
+    res.json({ reply: response.choices[0].message.content });
+  } catch {
+    res.json({ reply: "AI not available" });
+  }
+});
+
 io.on('connection', (socket) => {
-  console.log("User connected:", socket.id);
-
-  // Send existing alerts
   socket.emit('allAlerts', alerts);
-
-  socket.on('disconnect', () => {
-    console.log("User disconnected:", socket.id);
-  });
 });
 
-// 🚀 Start server
-server.listen(3000, () => {
-  console.log("Server running on http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+  console.log("Server running...");
 });
